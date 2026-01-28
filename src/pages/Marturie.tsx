@@ -5,7 +5,7 @@ export default function Marturie() {
     <CategoryPage
       slug="marturie"
       title="Mărturie"
-      verse="Mărturisiți-vă unii altora păcatele și rugați-vă unii pentru alții, ca să fiți vindecați. Mare putere are rugăciunea fierbinte a celui neprihănit."
+      verse="''Așadar, mărturisiți-vă păcatele unii altora și rugați-vă unii pentru alții, ca să fiți vindecați. Mare putere are rugăciunea celui drept!''"
       reference="Iacov 5:16"
       image="/images/marturie.jpg"
       headerGradient="linear-gradient(135deg, #fce4ec 0%, #e3f2fd 100%)"

@@ -5,7 +5,7 @@ export default function Predicare() {
     <CategoryPage
       slug="predicare"
       title="Predicare"
-      verse="Propovăduiește Cuvântul, stăruie asupra lui la timp și ne la timp; mustră, ceartă, îndeamnă, cu toată blândețea și învățătura."
+      verse="''predică Cuvântul, fii pregătit la momentul potrivit sau la momentul nepotrivit, corectează, mustră, îndeamnă cu toată răbdarea și învățătura''"
       reference="2 Timotei 4:2"
       image="/images/predicare.jpg"
       headerGradient="linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 100%)"

@@ -13,30 +13,107 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
+import CircularProgress from "@mui/material/CircularProgress";
+
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  Unsubscribe,
+  DocumentData,
+} from "firebase/firestore";
+import { db } from "../firebase";
+
+type Slug = "invatare" | "rugaciune" | "cantare" | "predicare" | "marturie";
 
 type Post = {
   id: string;
   title: string;
-  date: string;     // ISO
-  image?: string;   // opțional (thumb/mock)
-  excerpt: string;
-  content: string;
+  date: string;      // ISO
+  image?: string;    // opțional
+  excerpt: string;   // ✅ obligatoriu (preview)
+  content: string;   // ✅ obligatoriu (full)
   youtubeId?: string;
 };
 
 type CategoryPageProps = {
-  slug: "invatare" | "rugaciune" | "cantare" | "predicare" | "marturie";
+  slug: Slug;
   title: string;
   verse: string;
   reference: string;
-  image: string;            // imaginea din HEADER
-  headerGradient: string;   // gradient în header
-  accent: string;           // culoare pt. butoane selectate etc.
+  image: string;
+  headerGradient: string;
+  accent: string;
 };
 
 const PER_PAGE = 5;
 const youTube = (id: string) =>
   `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1`;
+
+function extractYouTubeId(input?: string | null) {
+  if (!input) return undefined;
+  if (/^[a-zA-Z0-9_-]{6,}$/.test(input) && !input.includes("http")) return input;
+
+  try {
+    const u = new URL(input);
+    if (u.hostname.includes("youtu.be")) {
+      const id = u.pathname.replace("/", "");
+      return id || undefined;
+    }
+    const v = u.searchParams.get("v");
+    if (v) return v;
+
+    const m = u.pathname.match(/\/embed\/([^/]+)/);
+    return m?.[1] ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function toISODate(raw: any): string {
+  if (raw?.toDate instanceof Function) return raw.toDate().toISOString();
+  if (typeof raw === "number") return new Date(raw).toISOString();
+  if (typeof raw === "string") {
+    const d = new Date(raw);
+    if (!isNaN(+d)) return d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function mapDocToPost(id: string, data: DocumentData): Post | null {
+  const title = String(data.title || "").trim();
+
+  // ✅ obligatorii
+  const excerpt = String(data.excerpt || "").trim(); // preview
+  const content = String(data.content || "").trim(); // full
+
+  // dacă lipsesc, NU afișăm postarea (ca să fie mandatory real)
+  if (!title || !excerpt || !content) return null;
+
+  const image: string | undefined = data.image || data.imageUrl || undefined;
+  const dateISO = toISODate(data.date ?? data.createdAt ?? data.updatedAt);
+
+  const youtubeId =
+    data.youtubeId ||
+    extractYouTubeId(data.youtubeUrl) ||
+    extractYouTubeId(data.youtube) ||
+    undefined;
+
+  return {
+    id,
+    title,
+    date: dateISO,
+    image,
+    excerpt,
+    content,
+    youtubeId,
+  };
+}
+
+function sortByDateDesc(items: Post[]) {
+  return [...items].sort((a, b) => +new Date(b.date) - +new Date(a.date));
+}
 
 export default function CategoryPage({
   slug,
@@ -51,41 +128,93 @@ export default function CategoryPage({
   const [open, setOpen] = React.useState(false);
   const [selected, setSelected] = React.useState<Post | null>(null);
 
-  // --------- MOCK POSTS (poți modifica/înlocui ulterior) ---------
-  const mock: Record<string, Post[]> = {
-    invatare: [
-      { id: "i1", title: "Cum să citești Biblia zilnic", date: "2025-01-15", image: "/caleata.png", excerpt: "Sfaturi practice pentru obicei constant de studiu biblic.", content: "Începe cu un plan realist (10-15 minute), alege o traducere clară și notează ce înțelegi. Roagă-te la început și la final." }
-    ],
-    rugaciune: [
-      { id: "r1", title: "Rugăciunea dimineața", date: "2025-01-05", excerpt: "Începe ziua cu pace.", content: "Mulțumire, mărturisire, cerere, încredere." }
-    ],
-    cantare: [
-      { id: "c1", title: "O cântare nouă", date: "2025-01-12", excerpt: "Psalmii ne inspiră.", content: "Concentrează-te pe adevăruri biblice clare." }
-    ],
-    predicare: [
-      { id: "p1", title: "Predică simplu și clar", date: "2025-01-22", excerpt: "Mesaj accesibil.", content: "Idee principală, texte, aplicații practice." }
-    ],
-    marturie: [
-      { id: "m1", title: "Mărturia personală", date: "2025-01-30", excerpt: "Spune ce a făcut Domnul.", content: "Fii onest, scurt, centrat pe Hristos." }
-    ],
-  };
+  const [loading, setLoading] = React.useState(true);
+  const [posts, setPosts] = React.useState<Post[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const posts = (mock[slug] || []).sort(
-    (a, b) => +new Date(b.date) - +new Date(a.date)
-  );
+  React.useEffect(() => setPage(1), [slug]);
+
+  React.useEffect(() => {
+    let unsub: Unsubscribe | null = null;
+    let fallbackUnsub: Unsubscribe | null = null;
+
+    setLoading(true);
+    setError(null);
+
+    const col = collection(db, "posts");
+
+    // 1) category == slug
+    const q1 = query(col, where("category", "==", slug));
+    unsub = onSnapshot(
+      q1,
+      (snap) => {
+        if (snap.empty) {
+          // fallback: slug == slug
+          if (!fallbackUnsub) {
+            const q2 = query(col, where("slug", "==", slug));
+            fallbackUnsub = onSnapshot(
+              q2,
+              (snap2) => {
+                const mapped = snap2.docs
+                  .map((d) => mapDocToPost(d.id, d.data()))
+                  .filter(Boolean) as Post[];
+
+                setPosts(sortByDateDesc(mapped));
+                setLoading(false);
+              },
+              (err2) => {
+                setError(err2?.message || "Eroare la citirea postărilor.");
+                setLoading(false);
+              }
+            );
+          } else {
+            setLoading(false);
+          }
+          return;
+        }
+
+        const mapped = snap.docs
+          .map((d) => mapDocToPost(d.id, d.data()))
+          .filter(Boolean) as Post[];
+
+        setPosts(sortByDateDesc(mapped));
+        setLoading(false);
+      },
+      (err) => {
+        setError(err?.message || "Eroare la citirea postărilor.");
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      unsub?.();
+      fallbackUnsub?.();
+    };
+  }, [slug]);
+
+  React.useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(posts.length / PER_PAGE));
+    setPage((p) => Math.min(p, totalPages));
+  }, [posts]);
 
   const totalPages = Math.max(1, Math.ceil(posts.length / PER_PAGE));
   const start = (page - 1) * PER_PAGE;
   const visible = posts.slice(start, start + PER_PAGE);
 
-  const openPost = (p: Post) => { setSelected(p); setOpen(true); };
-  const closePost = () => { setOpen(false); setSelected(null); };
+  const openPost = (p: Post) => {
+    setSelected(p);
+    setOpen(true);
+  };
+  const closePost = () => {
+    setOpen(false);
+    setSelected(null);
+  };
   const goPrev = () => setPage((p) => Math.max(1, p - 1));
   const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <Box>
-      {/* HEADER: gradient + IMAGINE SUS lângă verset */}
+      {/* HEADER */}
       <Box
         sx={{
           background: headerGradient,
@@ -105,7 +234,6 @@ export default function CategoryPage({
               alignItems: "center",
             }}
           >
-            {/* Text (titlu + verset) */}
             <Box>
               <Stack spacing={1.25}>
                 <Typography
@@ -145,7 +273,6 @@ export default function CategoryPage({
               </Stack>
             </Box>
 
-            {/* IMAGINEA de categorie (sus, lângă verset) */}
             <Box
               sx={{
                 width: "100%",
@@ -166,8 +293,26 @@ export default function CategoryPage({
         </Container>
       </Box>
 
-      {/* LISTĂ POSTĂRI — VERTICAL */}
+      {/* LISTĂ POSTĂRI */}
       <Container maxWidth="lg">
+        {loading && (
+          <Stack direction="row" justifyContent="center" sx={{ py: 4 }}>
+            <CircularProgress />
+          </Stack>
+        )}
+
+        {!loading && error && (
+          <Typography sx={{ color: "crimson", fontWeight: 700, mb: 2 }}>
+            {error}
+          </Typography>
+        )}
+
+        {!loading && !error && posts.length === 0 && (
+          <Typography sx={{ opacity: 0.8, mb: 2 }}>
+            Nu există postări încă în această categorie.
+          </Typography>
+        )}
+
         <Stack spacing={3}>
           {visible.map((post) => (
             <Card
@@ -178,7 +323,6 @@ export default function CategoryPage({
                 overflow: "hidden",
               }}
             >
-              {/* Thumb mock (îl păstrăm pentru demo; când vrei, îl scoatem) */}
               {post.image && (
                 <CardMedia
                   component="img"
@@ -198,9 +342,12 @@ export default function CategoryPage({
                 <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
                   {post.title}
                 </Typography>
-                <Typography sx={{ opacity: 0.85, mb: 1.5 }}>
+
+                {/* ✅ Aici e textul scurt (preview) */}
+                <Typography sx={{ opacity: 0.85, mb: 1.5, whiteSpace: "pre-line" }}>
                   {post.excerpt}
                 </Typography>
+
                 <Button
                   variant="contained"
                   size="small"
@@ -218,71 +365,55 @@ export default function CategoryPage({
           ))}
         </Stack>
 
-        {/* PAGINARE: Anterior / Pagina X din Y / Următoarea */}
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="center"
-          spacing={2.5}
-          sx={{ mt: 3, mb: { xs: 6, md: 8 } }}
-        >
-          <IconButton
-            onClick={goPrev}
-            disabled={page === 1}
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              bgcolor: "white",
-              border: "2px solid rgba(0,0,0,0.1)",
-              transition: "all 0.3s ease",
-              "&:hover": {
-                bgcolor: "rgba(0,0,0,0.05)",
-                transform: "translateY(-2px)",
-              },
-              "&:disabled": {
-                opacity: 0.4,
-                transform: "none",
-              },
-            }}
+        {/* PAGINARE */}
+        {posts.length > 0 && (
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="center"
+            spacing={2.5}
+            sx={{ mt: 3, mb: { xs: 6, md: 8 } }}
           >
-            ◀
-          </IconButton>
+            <IconButton
+              onClick={goPrev}
+              disabled={page === 1}
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                bgcolor: "white",
+                border: "2px solid rgba(0,0,0,0.1)",
+                transition: "all 0.3s ease",
+                "&:hover": { bgcolor: "rgba(0,0,0,0.05)", transform: "translateY(-2px)" },
+                "&:disabled": { opacity: 0.4, transform: "none" },
+              }}
+            >
+              ◀
+            </IconButton>
 
-          <Chip
-            label={`Pagina ${page} din ${totalPages}`}
-            sx={{
-              fontWeight: 700,
-              bgcolor: "rgba(0,0,0,0.06)",
-              px: 2,
-              py: 1,
-            }}
-          />
+            <Chip
+              label={`Pagina ${page} din ${totalPages}`}
+              sx={{ fontWeight: 700, bgcolor: "rgba(0,0,0,0.06)", px: 2, py: 1 }}
+            />
 
-          <IconButton
-            onClick={goNext}
-            disabled={page === totalPages}
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              bgcolor: "white",
-              border: "2px solid rgba(0,0,0,0.1)",
-              transition: "all 0.3s ease",
-              "&:hover": {
-                bgcolor: "rgba(0,0,0,0.05)",
-                transform: "translateY(-2px)",
-              },
-              "&:disabled": {
-                opacity: 0.4,
-                transform: "none",
-              },
-            }}
-          >
-            ▶
-          </IconButton>
-
-        </Stack>
+            <IconButton
+              onClick={goNext}
+              disabled={page === totalPages}
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                bgcolor: "white",
+                border: "2px solid rgba(0,0,0,0.1)",
+                transition: "all 0.3s ease",
+                "&:hover": { bgcolor: "rgba(0,0,0,0.05)", transform: "translateY(-2px)" },
+                "&:disabled": { opacity: 0.4, transform: "none" },
+              }}
+            >
+              ▶
+            </IconButton>
+          </Stack>
+        )}
       </Container>
 
       {/* MODAL POST COMPLET */}
@@ -322,6 +453,7 @@ export default function CategoryPage({
             </Box>
           )}
 
+          {/* ✅ Aici e textul complet (full) */}
           <Typography sx={{ whiteSpace: "pre-line", lineHeight: 1.8, mb: selected?.youtubeId ? 2 : 0 }}>
             {selected?.content}
           </Typography>
@@ -330,7 +462,7 @@ export default function CategoryPage({
             <Box
               sx={{
                 position: "relative",
-                pt: "56.25%", // 16:9
+                pt: "56.25%",
                 borderRadius: 2,
                 overflow: "hidden",
                 boxShadow: "0 6px 16px rgba(0,0,0,0.12)",

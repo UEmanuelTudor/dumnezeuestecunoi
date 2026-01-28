@@ -30,7 +30,6 @@ import AddIcon from "@mui/icons-material/Add";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 
-
 type CategoryKey = "invatare" | "rugaciune" | "predicare" | "cantare" | "marturie";
 
 const CATEGORIES: { key: CategoryKey; label: string }[] = [
@@ -46,7 +45,8 @@ type PostDoc = {
   category: CategoryKey;
   title: string;
   imageUrl: string;
-  content: string;
+  excerpt: string; // ✅ text scurt (preview) - obligatoriu
+  content: string; // ✅ text complet - obligatoriu
   youtubeUrl?: string;
   createdAt?: any;
   updatedAt?: any;
@@ -57,7 +57,8 @@ const emptyForm = {
   category: "invatare" as CategoryKey,
   title: "",
   imageUrl: "",
-  content: "",
+  excerpt: "", // ✅
+  content: "", // ✅
   youtubeUrl: "",
 };
 
@@ -112,7 +113,8 @@ export default function PostsManager() {
       category: p.category,
       title: p.title ?? "",
       imageUrl: p.imageUrl ?? "",
-      content: p.content ?? "",
+      excerpt: p.excerpt ?? "", // ✅
+      content: p.content ?? "", // ✅
       youtubeUrl: p.youtubeUrl ?? "",
     });
   };
@@ -127,7 +129,8 @@ export default function PostsManager() {
     setError(null);
 
     if (!form.title.trim()) return setError("Titlul este obligatoriu.");
-    if (!form.content.trim()) return setError("Textul este obligatoriu.");
+    if (!form.excerpt.trim()) return setError("Textul scurt (preview) este obligatoriu.");
+    if (!form.content.trim()) return setError("Textul complet este obligatoriu.");
     if (!isValidYouTube(form.youtubeUrl.trim())) return setError("Link YouTube invalid.");
 
     setSaving(true);
@@ -137,7 +140,8 @@ export default function PostsManager() {
           category: form.category,
           title: form.title.trim(),
           imageUrl: form.imageUrl.trim(),
-          content: form.content.trim(),
+          excerpt: form.excerpt.trim(), // ✅
+          content: form.content.trim(), // ✅
           youtubeUrl: form.youtubeUrl.trim() || "",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -149,7 +153,8 @@ export default function PostsManager() {
           category: form.category,
           title: form.title.trim(),
           imageUrl: form.imageUrl.trim(),
-          content: form.content.trim(),
+          excerpt: form.excerpt.trim(), // ✅
+          content: form.content.trim(), // ✅
           youtubeUrl: form.youtubeUrl.trim() || "",
           updatedAt: serverTimestamp(),
         });
@@ -174,30 +179,22 @@ export default function PostsManager() {
     }
   };
 
+  // buton Save dezactivat dacă lipsesc câmpurile obligatorii
+  const canSave =
+    !!form.title.trim() && !!form.excerpt.trim() && !!form.content.trim() && isValidYouTube(form.youtubeUrl.trim());
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Stack spacing={2}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
           <Box sx={{ flex: 1 }}>
-            <Typography
-              variant="h5"
-              fontWeight={800}
-              sx={{ color: "white", mb: 1 }}
-            >
+            <Typography variant="h5" fontWeight={800} sx={{ color: "white", mb: 1 }}>
               Gestionare postări
             </Typography>
 
-            <Typography
-              sx={{
-                color: "white",
-                textShadow: "0 1px 4px rgba(0,0,0,0.4)"
-              }}
-
-            >
+            <Typography sx={{ color: "white", textShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>
               Adaugă / editează / șterge postări pentru Învățare, Rugăciune, Predicare, Cântare, Mărturie.
             </Typography>
-
-
           </Box>
 
           <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
@@ -264,6 +261,7 @@ export default function PostsManager() {
 
                 <TextField
                   label="Titlu"
+                  required
                   value={form.title}
                   onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
                 />
@@ -275,10 +273,22 @@ export default function PostsManager() {
                   helperText="Poate fi URL sau /imagine.png (din public)."
                 />
 
+                {/* ✅ NOU: Text scurt (preview) */}
                 <TextField
-                  label="Text"
+                  label="Text scurt (preview — se vede înainte de «Citește»)"
+                  required
                   multiline
-                  minRows={6}
+                  minRows={3}
+                  value={form.excerpt}
+                  onChange={(e) => setForm((s) => ({ ...s, excerpt: e.target.value }))}
+                />
+
+                {/* ✅ Text complet */}
+                <TextField
+                  label="Text complet (se vede după ce apeși «Citește»)"
+                  required
+                  multiline
+                  minRows={7}
                   value={form.content}
                   onChange={(e) => setForm((s) => ({ ...s, content: e.target.value }))}
                 />
@@ -303,7 +313,7 @@ export default function PostsManager() {
                   <Button
                     onClick={handleSave}
                     startIcon={<SaveIcon />}
-                    disabled={saving}
+                    disabled={saving || !canSave}
                     variant="contained"
                     sx={{ borderRadius: 999, fontWeight: 900, textTransform: "uppercase" }}
                   >
@@ -345,8 +355,11 @@ export default function PostsManager() {
                       Categorie:{" "}
                       {CATEGORIES.find((c) => c.key === p.category)?.label ?? p.category}
                     </Typography>
-                    <Typography sx={{ mt: 1, opacity: 0.9, fontSize: 14 }}>
-                      {p.content?.slice(0, 180)}{p.content?.length > 180 ? "..." : ""}
+
+                    {/* ✅ în listă arătăm excerpt (preview), nu content */}
+                    <Typography sx={{ mt: 1, opacity: 0.9, fontSize: 14, whiteSpace: "pre-line" }}>
+                      {p.excerpt?.slice(0, 180)}
+                      {p.excerpt?.length > 180 ? "..." : ""}
                     </Typography>
                   </Box>
 
@@ -371,7 +384,6 @@ export default function PostsManager() {
         </Card>
       </Stack>
 
-      {/* spațiu înainte de footer (dacă e cazul) */}
       <Box sx={{ height: 24 }} />
     </Container>
   );
