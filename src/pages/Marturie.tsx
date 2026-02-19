@@ -7,7 +7,7 @@ export default function Marturie() {
       title="Mărturie"
       verse="''Așadar, mărturisiți-vă păcatele unii altora și rugați-vă unii pentru alții, ca să fiți vindecați. Mare putere are rugăciunea celui drept!''"
       reference="Iacov 5:16"
-      image="/images/marturie.jpg"
+      image="/marturie.png"
       headerGradient="linear-gradient(135deg, #fce4ec 0%, #e3f2fd 100%)"
       accent="#ad1457"
     />
