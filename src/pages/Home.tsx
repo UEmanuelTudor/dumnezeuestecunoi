@@ -9,6 +9,18 @@ import CardContent from "@mui/material/CardContent";
 import TextField from "@mui/material/TextField";
 import AutoStoriesIcon from "@mui/icons-material/AutoStories";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ShareIcon from "@mui/icons-material/Share";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import MusicNoteIcon from "@mui/icons-material/MusicNote";
+import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
+import { Link as RouterLink } from "react-router-dom";
+import SiteMeta from "../components/SiteMeta";
+
+// Importuri noi pentru funcționalitatea Newsletter-ului
+// import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+// import { db } from "../firebase";
+import emailjs from "@emailjs/browser";
 
 // Baza noastră de versete
 const bibleVerses = [
@@ -119,25 +131,64 @@ const bibleVerses = [
   { text: "„Căci toți suntem copiii lui Dumnezeu prin credința în Hristos Isus.”", ref: "Galateni 3:26" }
 ];
 
+const discoveryItems = [
+  {
+    title: "Învățare",
+    description: "Descoperă lecții, articole și resurse pentru creșterea ta în credință.",
+    to: "/c/invatare",
+    icon: <AutoStoriesIcon />,
+    color: "#0b3a6f",
+    background: "linear-gradient(135deg, #e0f7fa 0%, #e8f5e9 100%)",
+  },
+  {
+    title: "Rugăciune",
+    description: "Găsește un loc de liniște și apropie-te de Dumnezeu prin rugăciune.",
+    to: "/c/rugaciune",
+    icon: <FavoriteIcon />,
+    color: "#9f1239",
+    background: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)",
+  },
+  {
+    title: "Cântare",
+    description: "Laudă-l pe Dumnezeu prin cântări care aduc pace și încurajare.",
+    to: "/c/cantare",
+    icon: <MusicNoteIcon />,
+    color: "#7c2d12",
+    background: "linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%)",
+  },
+  {
+    title: "Mărturie",
+    description: "Citește povești despre credință, nădejde și lucrarea lui Dumnezeu.",
+    to: "/c/marturie",
+    icon: <RecordVoiceOverIcon />,
+    color: "#166534",
+    background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+  },
+];
+
 // LISTA CU IMAGINI PENTRU SLIDESHOW
-// Aici vei putea schimba numele pozelor pe măsură ce le adaugi în folderul public
 const imaginiSlideshow = [
-  "/pastorul.jpg", // Poza 1 (pe care o ai deja)
-  "/pastorul2.jpg",
+  "/pastorul.jpg", 
+  "/pastorul_unic.jpg",
   "/pastorul3.jpg",
+  "/isus_lumina.jpeg",
+  "/IISUS_REGELE.jpg"
 ];
 
 export default function Home() {
-  // Starea pentru a urmări a câta poză este afișată
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // Efectul care schimbă poza la fiecare 5 secunde (5000 milisecunde)
+  // Stări pentru formularul de Newsletter
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState({ message: "", type: "" });
+  const [verseActionMessage, setVerseActionMessage] = useState("");
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % imaginiSlideshow.length);
     }, 5000); 
-
-    // Curățăm intervalul dacă utilizatorul pleacă de pe pagină
     return () => clearInterval(interval);
   }, []);
 
@@ -151,6 +202,52 @@ export default function Home() {
 
   const dayIndex = (getDayOfYear() + 1) % bibleVerses.length;
   const verseOfTheDay = bibleVerses[dayIndex];
+  const verseText = `${verseOfTheDay.text} — ${verseOfTheDay.ref}`;
+
+  const copyVerse = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(verseText);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = verseText;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        if (!copied) throw new Error("Copierea nu este disponibilă.");
+      }
+
+      setVerseActionMessage("Versetul a fost copiat.");
+    } catch (error) {
+      console.error("Eroare la copierea versetului:", error);
+      setVerseActionMessage("Nu am putut copia versetul. Încearcă din nou.");
+    }
+  };
+
+  const shareVerse = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Versetul zilei - Dumnezeu este cu noi",
+          text: verseText,
+          url: window.location.href,
+        });
+        setVerseActionMessage("Versetul a fost distribuit.");
+        return;
+      }
+
+      await copyVerse();
+      setVerseActionMessage("Distribuirea nu este disponibilă aici. Versetul a fost copiat.");
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      console.error("Eroare la distribuirea versetului:", error);
+      setVerseActionMessage("Nu am putut distribui versetul. Încearcă din nou.");
+    }
+  };
   
   const getBibleLink = (referinta: string) => {
     const booksMap: Record<string, string> = {
@@ -180,6 +277,50 @@ export default function Home() {
     return `https://ebiblia.ro/app/index.html?ebiblia#read/vdcc/${abbrev}/${chapter}/${verse}`;
   };
 
+ // Funcția care procesează abonarea
+  const handleSubscribe = async () => {
+    if (!name || !email) {
+      setFeedback({ message: "Te rog să completezi ambele câmpuri.", type: "error" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback({ message: "", type: "" });
+
+    try {
+      // 1. Salvarea în Firebase - OPRITĂ TEMPORAR (pentru că nu ai acces la reguli)
+      /* 
+      await addDoc(collection(db, "newsletter"), {
+        name: name,
+        email: email,
+        subscribedAt: serverTimestamp(),
+      });
+      */
+
+      // 2. Trimite email-ul automat de confirmare prin EmailJS
+      const templateParams = {
+        name: name,
+        email: email,
+      };
+
+      await emailjs.send(
+        "service_511j3qs",
+        "template_by3yyis",
+        templateParams,
+        "3HUTaDpm0UyIWoCOx"
+      );
+
+      setFeedback({ message: "Te-ai abonat cu succes! Verifică-ți e-mailul.", type: "success" });
+      setName("");
+      setEmail("");
+    } catch (error) {
+      console.error("Eroare la abonare:", error);
+      setFeedback({ message: "A apărut o eroare. Te rog să încerci din nou.", type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Box 
       sx={{
@@ -191,6 +332,7 @@ export default function Home() {
       }}
     >
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+        <SiteMeta title="Acasă" description="Rugăciune, învățare, cântare și mărturii pentru o viață aproape de Dumnezeu." />
         
         <Typography
           variant="h3"
@@ -218,9 +360,9 @@ export default function Home() {
                 height: { xs: "350px", md: "450px" },
                 borderRadius: 4,
                 boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-                overflow: "hidden", // Ascunde colțurile tăiate din interior
-                position: "relative", // Baza pentru pozele suprapuse
-                bgcolor: "#e0d6c2" // Culoare de fundal cat timp se incarca
+                overflow: "hidden",
+                position: "relative",
+                bgcolor: "#e0d6c2"
               }}
             >
               {imaginiSlideshow.map((imagine, index) => (
@@ -237,7 +379,6 @@ export default function Home() {
                     left: 0,
                     objectFit: "cover",
                     objectPosition: "center bottom",
-                    // AICI SE ÎNTÂMPLĂ MAGIA FADE:
                     opacity: currentImageIndex === index ? 1 : 0, 
                     transition: "opacity 1.2s ease-in-out" 
                   }}
@@ -303,35 +444,190 @@ export default function Home() {
                 — {verseOfTheDay.ref}
               </Typography>
 
-              <Button
-                variant="contained"
-                href={getBibleLink(verseOfTheDay.ref)}
-                target="_blank"
-                rel="noopener noreferrer"
-                startIcon={<AutoStoriesIcon />}
-                sx={{
-                  bgcolor: "#00875a",
-                  fontFamily: "'Poppins', sans-serif",
-                  fontWeight: 600,
-                  px: 4,
-                  py: 1.5,
-                  borderRadius: 8,
-                  textTransform: "none",
-                  fontSize: "1rem",
-                  boxShadow: "0 8px 20px rgba(0, 135, 90, 0.3)",
-                  "&:hover": { 
-                    bgcolor: "#006b47",
-                    transform: "translateY(-2px)",
-                    boxShadow: "0 12px 24px rgba(0, 135, 90, 0.4)",
-                  },
-                  transition: "all 0.3s ease"
-                }}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                justifyContent="center"
+                sx={{ width: "100%" }}
               >
-                Deschide Biblia
-              </Button>
+                <Button
+                  variant="contained"
+                  href={getBibleLink(verseOfTheDay.ref)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  startIcon={<AutoStoriesIcon />}
+                  sx={{
+                    bgcolor: "#00875a",
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: 600,
+                    px: 3,
+                    py: 1.5,
+                    borderRadius: 8,
+                    textTransform: "none",
+                    fontSize: "1rem",
+                    boxShadow: "0 8px 20px rgba(0, 135, 90, 0.3)",
+                    "&:hover": {
+                      bgcolor: "#006b47",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 12px 24px rgba(0, 135, 90, 0.4)",
+                    },
+                    transition: "all 0.3s ease"
+                  }}
+                >
+                  Deschide Biblia
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={copyVerse}
+                  sx={{
+                    borderColor: "#00875a",
+                    color: "#00875a",
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: 600,
+                    px: 2.5,
+                    py: 1.5,
+                    borderRadius: 8,
+                    textTransform: "none",
+                    "&:hover": {
+                      borderColor: "#006b47",
+                      bgcolor: "rgba(0, 135, 90, 0.06)",
+                    },
+                  }}
+                >
+                  Copiază
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<ShareIcon />}
+                  onClick={shareVerse}
+                  sx={{
+                    borderColor: "#d4a373",
+                    color: "#8b5e34",
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: 600,
+                    px: 2.5,
+                    py: 1.5,
+                    borderRadius: 8,
+                    textTransform: "none",
+                    "&:hover": {
+                      borderColor: "#8b5e34",
+                      bgcolor: "rgba(212, 163, 115, 0.1)",
+                    },
+                  }}
+                >
+                  Distribuie
+                </Button>
+              </Stack>
+              {verseActionMessage && (
+                <Typography
+                  role="status"
+                  aria-live="polite"
+                  variant="body2"
+                  sx={{ mt: 1.5, color: "#526b5b", fontWeight: 600 }}
+                >
+                  {verseActionMessage}
+                </Typography>
+              )}
             </Box>
           </Box>
         </Stack>
+
+        {/* SECȚIUNEA DESCOPERĂ SITE-UL */}
+        <Box component="section" aria-labelledby="descopera-site-ul" sx={{ mb: { xs: 5, md: 7 } }}>
+          <Box sx={{ textAlign: "center", mb: 3.5 }}>
+            <Typography
+              id="descopera-site-ul"
+              component="h2"
+              sx={{
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 800,
+                color: "#0f2e60",
+                fontSize: { xs: "1.7rem", md: "2.1rem" },
+                mb: 1,
+              }}
+            >
+              Descoperă site-ul
+            </Typography>
+            <Typography sx={{ color: "#526274", maxWidth: 650, mx: "auto", lineHeight: 1.6 }}>
+              Găsește resurse și încurajare pentru fiecare pas al călătoriei tale cu Dumnezeu.
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+              gap: 2.5,
+            }}
+          >
+            {discoveryItems.map((item) => (
+              <Box
+                key={item.to}
+                component={RouterLink}
+                to={item.to}
+                sx={{
+                  textDecoration: "none",
+                  color: "inherit",
+                  display: "flex",
+                  minWidth: 0,
+                }}
+              >
+                <Card
+                  sx={{
+                    width: "100%",
+                    borderRadius: 4,
+                    background: item.background,
+                    border: "1px solid rgba(15, 46, 96, 0.08)",
+                    boxShadow: "0 6px 18px rgba(15, 46, 96, 0.07)",
+                    transition: "transform 0.25s ease, box-shadow 0.25s ease",
+                    "&:hover": {
+                      transform: "translateY(-6px)",
+                      boxShadow: "0 14px 28px rgba(15, 46, 96, 0.14)",
+                    },
+                    "&:focus-visible": {
+                      outline: `3px solid ${item.color}`,
+                      outlineOffset: 3,
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 2.75, height: "100%" }}>
+                    <Box
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        bgcolor: "rgba(255,255,255,0.72)",
+                        color: item.color,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mb: 2,
+                        "& svg": { fontSize: 26 },
+                      }}
+                    >
+                      {item.icon}
+                    </Box>
+                    <Typography
+                      component="h3"
+                      sx={{
+                        color: item.color,
+                        fontWeight: 800,
+                        fontSize: "1.2rem",
+                        mb: 1,
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    <Typography sx={{ color: "#475569", fontSize: "0.95rem", lineHeight: 1.55 }}>
+                      {item.description}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+            ))}
+          </Box>
+        </Box>
 
       <Card
         sx={{
@@ -474,263 +770,331 @@ export default function Home() {
       </Card>
 
       <Box
-        sx={{
-          mb: { xs: 4, md: 6 },
-          background: "linear-gradient(180deg, #f3f8ff 0%, #eef6ff 100%)",
-          border: "1px solid #e1ecff",
-          borderRadius: 3,
-          boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
-          p: { xs: 2.5, md: 3 },
-        }}
-      >
-        <Typography
-        variant="h4"
-        align="center"
-        sx={{
-          fontFamily: "'Poppins', sans-serif",
-          fontWeight: 800,
-          fontSize: { xs: "1.8rem", md: "2.2rem" }, 
-          color: "#0f2e60", 
-          mb: 5, 
-          letterSpacing: "-0.5px"
-        }}
-      >
-        Cum te poți implica?
-      </Typography>
-
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={{ xs: 2, md: 2.5 }}
-          sx={{ width: "100%" }}
-        >
-          <Card
-            sx={{
-              flex: 1,
-              background: "linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)", 
-              color: "#1e3a8a", 
-              border: "none",
-              borderRadius: 4,
-              transition: "transform 0.25s ease, box-shadow 0.25s ease",
-              "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(161, 196, 253, 0.4)" }, 
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                <Box
-                  role="img"
-                  aria-label="Mâini în rugăciune"
-                  sx={{
-                    width: 48, height: 48, borderRadius: "50%",
-                    bgcolor: "rgba(255,255,255,0.45)",
-                    backdropFilter: "blur(4px)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 24, lineHeight: 1,
-                  }}
-                >
-                  🙏
-                </Box>
-                <Typography 
-                  variant="h6" 
-                  sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
-                >
-                  Roagă-te
-                </Typography>
-              </Stack>
-              <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
-                Când prezența fizică lipsește, rugăciunea devine cea mai puternică formă de apropiere.
-              </Typography>
-            </CardContent>
-          </Card>
-
-          <Card
-            sx={{
-              flex: 1,
-              background: "linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)", 
-              color: "#1d3a1f",
-              border: "none",
-              borderRadius: 4,
-              transition: "transform 0.25s ease, box-shadow 0.25s ease",
-              "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(150, 230, 161, 0.3)" },
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                <Box
-                  role="img"
-                  aria-label="Inimă din mâini"
-                  sx={{
-                    width: 48, height: 48, borderRadius: "50%",
-                    bgcolor: "rgba(255,255,255,0.5)",
-                    backdropFilter: "blur(4px)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 26, lineHeight: 1,
-                  }}
-                >
-                  🫶
-                </Box>
-                <Typography 
-                  variant="h6" 
-                  sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
-                >
-                  Oferă ajutor
-                </Typography>
-              </Stack>
-              <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
-                Transformă compasiunea în gesturi care schimbă viețile oamenilor. Implică-te în proiecte de slujire și adu speranță celor aflați în nevoie.
-              </Typography>
-            </CardContent>
-          </Card>
-
-          <Card
-            sx={{
-              flex: 1,
-              background: "linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)", 
-              color: "#4a1c22",
-              border: "none",
-              borderRadius: 4,
-              transition: "transform 0.25s ease, box-shadow 0.25s ease",
-              "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(255, 154, 158, 0.3)" },
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                <Box
-                  role="img"
-                  aria-label="Scrisoare cu inimă"
-                  sx={{
-                    width: 48, height: 48, borderRadius: "50%",
-                    bgcolor: "rgba(255,255,255,0.45)",
-                    backdropFilter: "blur(4px)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 24, lineHeight: 1,
-                  }}
-                >
-                  💌
-                </Box>
-                <Typography 
-                  variant="h6" 
-                  sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
-                >
-                  Împarte mai departe
-                </Typography>
-              </Stack>
-              <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
-                Distribuie proiectul prietenilor tăi și poartă mesajul Evangheliei către cei aflați în nevoie, prin orice formă de slujire și iubire.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Stack>
-      </Box>
-
-      <Box
-        sx={{
-          mb: { xs: 4, md: 6 },
-          p: { xs: 2.5, md: 3 },
-          borderRadius: 3,
-          border: "1px solid #d9d4cb",
-          boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
-          background: `
-            linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.7)),
-            repeating-linear-gradient(
-              0deg,
-              #f7f4ee,
-              #f7f4ee 24px,
-              #f0ece4 25px,
-              #f0ece4 26px
-            )
-          `,
-        }}
-      >
-        <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            mb: { xs: 1.5, md: 2 },
-            borderBottom: "1px solid #d9d4cb",
-            pb: 1,
+            mb: { xs: 4, md: 6 },
+            background: "linear-gradient(180deg, #f3f8ff 0%, #eef6ff 100%)",
+            border: "1px solid #e1ecff",
+            borderRadius: 3,
+            boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
+            p: { xs: 2.5, md: 3 },
           }}
         >
-          <MailOutlineIcon />
           <Typography
-            component="h3"
+            variant="h4"
+            align="center"
             sx={{
-              fontFamily: '"Raleway", Helvetica, sans-serif',
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
+              fontFamily: "'Poppins', sans-serif",
               fontWeight: 800,
-              fontSize: { xs: 18, md: 20 },
+              fontSize: { xs: "1.8rem", md: "2.2rem" }, 
+              color: "#0f2e60", 
+              mb: 5, 
+              letterSpacing: "-0.5px"
             }}
           >
-            Abonează-te la newsletter
+            Cum te poți implica?
           </Typography>
+
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={{ xs: 2, md: 2.5 }}
+            sx={{ width: "100%" }}
+          >
+            {/* CARD 1 - ROAGĂ-TE */}
+            <Card
+              sx={{
+                flex: 1,
+                background: "linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)", 
+                color: "#1e3a8a", 
+                border: "none",
+                borderRadius: 4,
+                transition: "all 0.3s ease",
+                "@keyframes heartbeat": {
+                  "0%": { transform: "scale(1)" },
+                  "25%": { transform: "scale(1.15)" },
+                  "50%": { transform: "scale(1)" },
+                  "75%": { transform: "scale(1.15)" },
+                  "100%": { transform: "scale(1)" }
+                },
+                "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(161, 196, 253, 0.4)" },
+                "&:hover .emoji-box": { animation: "heartbeat 1.5s infinite ease-in-out" }
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box
+                    className="emoji-box"
+                    role="img"
+                    aria-label="Mâini în rugăciune"
+                    sx={{
+                      width: 48, height: 48, borderRadius: "50%",
+                      bgcolor: "rgba(255,255,255,0.45)",
+                      backdropFilter: "blur(4px)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, fontSize: 24, lineHeight: 1,
+                    }}
+                  >
+                    🙏
+                  </Box>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
+                  >
+                    Roagă-te
+                  </Typography>
+                </Stack>
+                <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
+                  Când prezența fizică lipsește, rugăciunea devine cea mai puternică formă de apropiere.
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* CARD 2 - OFERĂ AJUTOR */}
+            <Card
+              sx={{
+                flex: 1,
+                background: "linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)", 
+                color: "#1d3a1f",
+                border: "none",
+                borderRadius: 4,
+                transition: "all 0.3s ease",
+                "@keyframes heartbeat": {
+                  "0%": { transform: "scale(1)" },
+                  "25%": { transform: "scale(1.15)" },
+                  "50%": { transform: "scale(1)" },
+                  "75%": { transform: "scale(1.15)" },
+                  "100%": { transform: "scale(1)" }
+                },
+                "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(150, 230, 161, 0.3)" },
+                "&:hover .emoji-box": { animation: "heartbeat 1.5s infinite ease-in-out" }
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box
+                    className="emoji-box"
+                    role="img"
+                    aria-label="Inimă din mâini"
+                    sx={{
+                      width: 48, height: 48, borderRadius: "50%",
+                      bgcolor: "rgba(255,255,255,0.5)",
+                      backdropFilter: "blur(4px)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, fontSize: 26, lineHeight: 1,
+                    }}
+                  >
+                    🫶
+                  </Box>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
+                  >
+                    Oferă ajutor
+                  </Typography>
+                </Stack>
+                <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
+                  Transformă compasiunea în gesturi care schimbă viețile oamenilor. Implică-te în proiecte de slujire și adu speranță celor aflați în nevoie.
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* CARD 3 - ÎMPARTE MAI DEPARTE */}
+            <Card
+              sx={{
+                flex: 1,
+                background: "linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)", 
+                color: "#4a1c22",
+                border: "none",
+                borderRadius: 4,
+                transition: "all 0.3s ease",
+                "@keyframes heartbeat": {
+                  "0%": { transform: "scale(1)" },
+                  "25%": { transform: "scale(1.15)" },
+                  "50%": { transform: "scale(1)" },
+                  "75%": { transform: "scale(1.15)" },
+                  "100%": { transform: "scale(1)" }
+                },
+                "&:hover": { transform: "translateY(-6px)", boxShadow: "0 12px 28px rgba(255, 154, 158, 0.3)" },
+                "&:hover .emoji-box": { animation: "heartbeat 1.5s infinite ease-in-out" }
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2.5, md: 3 }, height: "100%" }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box
+                    className="emoji-box"
+                    role="img"
+                    aria-label="Scrisoare cu inimă"
+                    sx={{
+                      width: 48, height: 48, borderRadius: "50%",
+                      bgcolor: "rgba(255,255,255,0.45)",
+                      backdropFilter: "blur(4px)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, fontSize: 24, lineHeight: 1,
+                    }}
+                  >
+                    💌
+                  </Box>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, letterSpacing: "-0.5px" }}
+                  >
+                    Împarte mai departe
+                  </Typography>
+                </Stack>
+                <Typography sx={{ fontFamily: "'Nunito', sans-serif", opacity: 0.95, fontWeight: 600, lineHeight: 1.6, fontSize: "0.95rem" }}>
+                  Distribuie proiectul prietenilor tăi și poartă mesajul Evangheliei către cei aflați în nevoie, prin orice formă de slujire și iubire.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Stack>
         </Box>
 
-        <Typography
+        {/* ===================================== */}
+        {/* SECȚIUNEA NEWSLETTER PREMIUM          */}
+        {/* ===================================== */}
+        <Box
           sx={{
-            opacity: 0.9,
-            fontSize: { xs: 14.5, md: 15.5 },
-            lineHeight: 1.75,
-            mb: { xs: 2, md: 2.5 },
-            maxWidth: 900,
+            mb: { xs: 4, md: 6 },
+            p: { xs: 3, md: 5 },
+            borderRadius: 4,
+            background: "linear-gradient(135deg, #0f2e60 0%, #082c54 100%)",
+            color: "white",
+            boxShadow: "0 15px 35px rgba(15, 46, 96, 0.2)",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          Primește noutăți, îndemnuri, rugăciuni și proiecte de slujire direct pe e-mail.
-          Fără spam. Te poți dezabona oricând.
-        </Typography>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={4} alignItems="center" justifyContent="space-between">
+            
+            <Box sx={{ maxWidth: 500 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Box sx={{ width: 42, height: 42, borderRadius: "50%", bgcolor: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <MailOutlineIcon sx={{ color: "#60a5fa" }} />
+                </Box>
+                <Typography
+                  component="h3"
+                  sx={{
+                    fontFamily: "'Poppins', sans-serif",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    fontWeight: 800,
+                    fontSize: { xs: 18, md: 22 },
+                  }}
+                >
+                  Abonează-te la newsletter
+                </Typography>
+              </Stack>
+              <Typography
+                sx={{
+                  opacity: 0.85,
+                  fontSize: { xs: 14, md: 15.5 },
+                  lineHeight: 1.6,
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                Primește noutăți, îndemnuri, rugăciuni și proiecte de slujire direct pe e-mail. Fără spam. Te poți dezabona oricând.
+              </Typography>
+            </Box>
 
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.5}
-          sx={{ maxWidth: 720 }}
-        >
-          <TextField
-            fullWidth
-            placeholder="Numele tău"
-            variant="outlined"
-            sx={{
-              backgroundColor: "white",
-              "& .MuiOutlinedInput-root": { borderRadius: 2 },
-            }}
-          />
-          <TextField
-            fullWidth
-            type="email"
-            placeholder="Adresa de e-mail"
-            variant="outlined"
-            sx={{
-              backgroundColor: "white",
-              "& .MuiOutlinedInput-root": { borderRadius: 2 },
-            }}
-          />
-          <Button
-            variant="contained"
-            sx={{
-              minWidth: { xs: "100%", sm: 160 },
-              borderRadius: 2,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              background:
-                "linear-gradient(90deg, #0b3a6f 0%, #082c54 100%)",
-              "&:hover": {
-                background:
-                  "linear-gradient(90deg, #0d488b 0%, #0a376a 100%)",
-              },
-            }}
-          >
-            Abonează-mă
-          </Button>
-        </Stack>
+            <Box sx={{ width: { xs: "100%", md: "auto" }, flex: 1, maxWidth: 450 }}>
+              <Stack spacing={2}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                  <TextField
+                    fullWidth
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Numele tău"
+                    variant="outlined"
+                    sx={{
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      input: { color: "white" },
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2.5,
+                        color: "white",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" },
+                        "&:hover fieldset": { borderColor: "rgba(255, 255, 255, 0.4)" },
+                        "&.Mui-focused fieldset": { borderColor: "#60a5fa" },
+                      },
+                      "& .MuiInputBase-input::placeholder": { color: "rgba(255, 255, 255, 0.6)", opacity: 1 },
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="Adresa de e-mail"
+                    variant="outlined"
+                    sx={{
+                      backgroundColor: "rgba(255, 255, 255, 0.08)",
+                      input: { color: "white" },
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2.5,
+                        color: "white",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" },
+                        "&:hover fieldset": { borderColor: "rgba(255, 255, 255, 0.4)" },
+                        "&.Mui-focused fieldset": { borderColor: "#60a5fa" },
+                      },
+                      "& .MuiInputBase-input::placeholder": { color: "rgba(255, 255, 255, 0.6)", opacity: 1 },
+                    }}
+                  />
+                </Stack>
+                <Button
+                  onClick={handleSubscribe}
+                  disabled={isSubmitting}
+                  variant="contained"
+                  sx={{
+                    width: "100%",
+                    py: 1.5,
+                    borderRadius: 2.5,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    backgroundColor: "#e63946",
+                    color: "white",
+                    boxShadow: "0 4px 15px rgba(230, 57, 70, 0.4)",
+                    "&:hover": {
+                      backgroundColor: "#d90429",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 6px 20px rgba(217, 4, 41, 0.5)",
+                    },
+                    "&:disabled": {
+                      backgroundColor: "#9ca3af",
+                      color: "#f3f4f6"
+                    },
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {isSubmitting ? "Se procesează..." : "Abonează-mă"}
+                </Button>
+                
+                {feedback.message && (
+                  <Typography
+                    variant="caption"
+                    sx={{ 
+                      display: "block", 
+                      textAlign: "center", 
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      color: feedback.type === "success" ? "#4ade80" : "#f87171" 
+                    }}
+                  >
+                    {feedback.message}
+                  </Typography>
+                )}
 
-        <Typography
-          variant="caption"
-          sx={{ display: "block", mt: 1.5, opacity: 0.7 }}
-        >
-          Prin abonare ești de acord cu prelucrarea datelor conform politicii de confidențialitate.
-        </Typography>
-      </Box>
-    </Container>
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", textAlign: "center", opacity: 0.6, fontSize: "0.75rem" }}
+                >
+                  Prin abonare ești de acord cu prelucrarea datelor conform politicii de confidențialitate.
+                </Typography>
+              </Stack>
+            </Box>
+
+          </Stack>
+        </Box>
+
+      </Container>
     </Box>
   );
 }

@@ -9,6 +9,8 @@ import YouTubeIcon from "@mui/icons-material/YouTube";
 import InstagramIcon from "@mui/icons-material/Instagram";
 import EmailIcon from "@mui/icons-material/Email";
 import SvgIcon from "@mui/material/SvgIcon";
+import Button from "@mui/material/Button";
+import { Link as RouterLink } from "react-router-dom";
 
 function TikTokIcon(props: any) {
   return (
@@ -117,8 +119,14 @@ export default function Footer() {
             </IconButton>
           </Stack>
 
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+            <Button component={RouterLink} to="/despre-noi" sx={{ color: "white", textTransform: "none" }}>Despre noi</Button>
+            <Button component={RouterLink} to="/contact" sx={{ color: "white", textTransform: "none" }}>Contact</Button>
+            <Button component={RouterLink} to="/politica-de-confidentialitate" sx={{ color: "white", textTransform: "none" }}>Confidențialitate</Button>
+          </Stack>
+
           <Typography variant="caption" sx={{ opacity: 0.8 }}>
-            © 2025 cu sprijinul{" "}
+            © {new Date().getFullYear()} cu sprijinul{" "}
             <a
               href="https://uetcompany.ro"
               target="_blank"

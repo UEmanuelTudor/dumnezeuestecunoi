@@ -1,4 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../../firebase";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -8,9 +11,32 @@ import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import BarChartIcon from "@mui/icons-material/BarChart";
+import ArticleIcon from "@mui/icons-material/Article";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
+import VolunteerActivismIcon from "@mui/icons-material/VolunteerActivism";
+
+type Stats = { posts: number; pendingNeeds: number; testimonies: number; subscribers: number; prayers: number };
 
 export default function AdminHome() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<Stats>({ posts: 0, pendingNeeds: 0, testimonies: 0, subscribers: 0, prayers: 0 });
+  const [statsError, setStatsError] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      getDocs(collection(db, "posts")),
+      getDocs(query(collection(db, "needs"), where("status", "==", "pending"))),
+      getDocs(query(collection(db, "posts"), where("category", "==", "marturie"))),
+      getDocs(collection(db, "newsletter")),
+      getDocs(query(collection(db, "needs"), where("status", "==", "approved"))),
+    ]).then(([posts, pendingNeeds, testimonies, subscribers, prayers]) => {
+      setStats({ posts: posts.size, pendingNeeds: pendingNeeds.size, testimonies: testimonies.size, subscribers: subscribers.size, prayers: prayers.size });
+    }).catch((error) => {
+      console.error("Eroare la încărcarea statisticilor:", error);
+      setStatsError("Statisticile nu au putut fi încărcate. Verifică permisiunile Firebase.");
+    });
+  }, []);
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
@@ -34,6 +60,24 @@ export default function AdminHome() {
       </Box>
 
       {/* PANOU 1 */}
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(5, 1fr)" }, gap: 1.5, mb: 3 }}>
+        {[
+          ["Postări", stats.posts, <ArticleIcon />],
+          ["Nevoi în așteptare", stats.pendingNeeds, <FavoriteIcon />],
+          ["Mărturii", stats.testimonies, <VolunteerActivismIcon />],
+          ["Abonați", stats.subscribers, <MarkEmailReadIcon />],
+          ["Nevoi aprobate", stats.prayers, <BarChartIcon />],
+        ].map(([label, value, icon]) => (
+          <Card key={label as string} sx={{ borderRadius: 3, bgcolor: "white" }}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ color: "#0f2e60" }}>{icon}</Stack>
+              <Typography sx={{ color: "#64748b", fontSize: 12, mt: 1 }}>{label}</Typography>
+              <Typography sx={{ color: "#0f2e60", fontWeight: 900, fontSize: 25 }}>{value as number}</Typography>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
+      {statsError && <Typography role="alert" sx={{ color: "#fecaca", mb: 2 }}>{statsError}</Typography>}
       <Box
         sx={{
           borderRadius: 4,
@@ -112,7 +156,7 @@ export default function AdminHome() {
                 fullWidth
                 variant="outlined"
                 sx={{ borderRadius: 999, fontWeight: 900, textTransform: "uppercase" }}
-                onClick={() => alert("Statistici – facem după ce terminăm Administrarea.")}
+                onClick={() => navigate("/admin/statistici")}
               >
                 Vezi statistici
               </Button>

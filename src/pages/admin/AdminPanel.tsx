@@ -11,6 +11,8 @@ import ArticleIcon from "@mui/icons-material/Article";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import PermMediaIcon from "@mui/icons-material/PermMedia";
+import HistoryIcon from "@mui/icons-material/History";
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -42,7 +44,7 @@ export default function AdminPanel() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+            gridTemplateColumns: { xs: "1fr", md: "repeat(5, 1fr)" },
             gap: 2,
           }}
         >
@@ -63,6 +65,20 @@ export default function AdminPanel() {
               >
                 Intră
               </Button>
+            </CardContent>
+          </Card>
+          <Card sx={{ borderRadius: 4, bgcolor: "rgba(255,255,255,0.92)" }}>
+            <CardContent>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}><PermMediaIcon /><Typography sx={{ fontWeight: 900, textTransform: "uppercase" }}>Media</Typography></Stack>
+              <Typography sx={{ opacity: 0.8, mb: 2 }}>Imagini și linkuri reutilizabile.</Typography>
+              <Button fullWidth variant="contained" onClick={() => navigate("/admin/administrare/media")} sx={{ borderRadius: 999, fontWeight: 900 }}>Intră</Button>
+            </CardContent>
+          </Card>
+          <Card sx={{ borderRadius: 4, bgcolor: "rgba(255,255,255,0.92)" }}>
+            <CardContent>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}><HistoryIcon /><Typography sx={{ fontWeight: 900, textTransform: "uppercase" }}>Istoric</Typography></Stack>
+              <Typography sx={{ opacity: 0.8, mb: 2 }}>Modificări și ștergeri.</Typography>
+              <Button fullWidth variant="contained" onClick={() => navigate("/admin/administrare/istoric")} sx={{ borderRadius: 999, fontWeight: 900 }}>Intră</Button>
             </CardContent>
           </Card>
 
