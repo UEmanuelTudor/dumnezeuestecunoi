@@ -36,6 +36,45 @@ type NeedItem = {
   createdAt?: any;
 };
 
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import DeleteIcon from "@mui/icons-material/Delete";
+
+// ⚠️ Link-ul către worker-ul tău de pe Cloudflare
+const WORKER_URL = "https://nameless-bonus-c608.d4riusfncollab.workers.dev";
+
+// ⚠️ ÎNLOCUIEȘTE cu parola pe care ai pus-o la secretul ADMIN_TOKEN în Cloudflare
+const ADMIN_TOKEN = "parola2026!";
+
+type Status = "in_asteptare" | "acceptata" | "refuzata" | "rezolvata";
+
+type Nevoie = {
+  id: string;
+  nume: string;
+  descriere: string;
+  contact?: string;
+  status: Status;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+const STATUS_LABEL: Record<Status, { label: string; color: "default" | "success" | "error" | "info" }> = {
+  in_asteptare: { label: "În așteptare", color: "default" },
+  acceptata: { label: "Acceptată", color: "info" },
+  refuzata: { label: "Refuzată", color: "error" },
+  rezolvata: { label: "Rezolvată", color: "success" },
+};
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("ro-RO");
+  } catch {
+    return iso;
+  }
+}
+
 export default function NeedsManager() {
   const [needs, setNeeds] = useState<NeedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -224,4 +263,3 @@ export default function NeedsManager() {
     </Container>
   );
 }
-

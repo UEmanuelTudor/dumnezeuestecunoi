@@ -40,7 +40,6 @@ export default function AdminHome() {
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
-      {/* HERO */}
       <Box
         sx={{
           borderRadius: 4,
@@ -54,6 +53,7 @@ export default function AdminHome() {
         <Typography sx={{ fontWeight: 900, fontSize: { xs: 18, md: 22 }, mb: 1 }}>
           Romani 11:36
         </Typography>
+
         <Typography sx={{ opacity: 0.95, lineHeight: 1.7, fontSize: { xs: 14.5, md: 16 } }}>
           „Din El, prin El și pentru El sunt toate lucrurile. A Lui să fie slava în veci! Amin!”
         </Typography>
@@ -112,6 +112,7 @@ export default function AdminHome() {
                   Administrare
                 </Typography>
               </Stack>
+
               <Typography sx={{ opacity: 0.8, mb: 2 }}>
                 Gestionează postări, nevoi și newsletter.
               </Typography>
@@ -148,8 +149,9 @@ export default function AdminHome() {
                   Statistici
                 </Typography>
               </Stack>
+
               <Typography sx={{ opacity: 0.8, mb: 2 }}>
-                Grafice: postări, vizualizări, nevoi, perioade.
+                Vezi numărul de postări, nevoi, postări pe categorii și vizionări.
               </Typography>
 
               <Button
@@ -166,4 +168,4 @@ export default function AdminHome() {
       </Box>
     </Container>
   );
-}
+} 

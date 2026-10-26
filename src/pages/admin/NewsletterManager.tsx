@@ -29,6 +29,30 @@ interface Subscriber {
   subscribedAt: any;
 }
 
+import DeleteIcon from "@mui/icons-material/Delete";
+import EmailIcon from "@mui/icons-material/Email";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+
+// ⚠️ Link-ul către worker-ul tău de pe Cloudflare
+const WORKER_URL = "https://nameless-bonus-c608.d4riusfncollab.workers.dev";
+
+// ⚠️ ÎNLOCUIEȘTE cu parola pe care ai pus-o la secretul ADMIN_TOKEN în Cloudflare
+const ADMIN_TOKEN = "parola2026!";
+
+type Subscriber = {
+  nume: string;
+  email: string;
+  subscribedAt: string;
+};
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("ro-RO");
+  } catch {
+    return iso;
+  }
+}
+
 export default function NewsletterManager() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
