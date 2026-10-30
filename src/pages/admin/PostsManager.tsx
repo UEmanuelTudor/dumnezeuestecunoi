@@ -29,6 +29,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
+import AdminBackButton from "./AdminBackButton";
 
 type CategoryKey = "invatare" | "rugaciune" | "predicare" | "cantare" | "marturie";
 
@@ -50,6 +51,10 @@ type PostDoc = {
   youtubeUrl?: string;
   createdAt?: any;
   updatedAt?: any;
+  status?: "draft" | "published";
+  slug?: string;
+  tags?: string[];
+  scheduledAt?: string;
 };
 
 const emptyForm = {
@@ -60,6 +65,10 @@ const emptyForm = {
   excerpt: "", // ✅
   content: "", // ✅
   youtubeUrl: "",
+  status: "published" as "draft" | "published",
+  slug: "",
+  tags: "",
+  scheduledAt: "",
 };
 
 function isValidYouTube(url: string) {
@@ -116,6 +125,10 @@ export default function PostsManager() {
       excerpt: p.excerpt ?? "", // ✅
       content: p.content ?? "", // ✅
       youtubeUrl: p.youtubeUrl ?? "",
+      status: p.status ?? "published",
+      slug: p.slug ?? "",
+      tags: (p.tags ?? []).join(", "),
+      scheduledAt: p.scheduledAt ?? "",
     });
   };
 
@@ -136,7 +149,7 @@ export default function PostsManager() {
     setSaving(true);
     try {
       if (mode === "create") {
-        await addDoc(collection(db, "posts"), {
+        const postRef = await addDoc(collection(db, "posts"), {
           category: form.category,
           title: form.title.trim(),
           imageUrl: form.imageUrl.trim(),
@@ -145,7 +158,12 @@ export default function PostsManager() {
           youtubeUrl: form.youtubeUrl.trim() || "",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          status: form.status,
+          slug: form.slug.trim() || form.title.trim().toLowerCase().replace(/[^a-z0-9ăâîșț]+/gi, "-").replace(/^-|-$/g, ""),
+          tags: form.tags.split(",").map((tag: string) => tag.trim()).filter(Boolean),
+          scheduledAt: form.scheduledAt || "",
         });
+        await addDoc(collection(db, "auditLogs"), { entity: "post", entityId: postRef.id, action: "created", title: form.title.trim(), createdAt: serverTimestamp() });
       }
 
       if (mode === "edit" && form.id) {
@@ -157,7 +175,12 @@ export default function PostsManager() {
           content: form.content.trim(), // ✅
           youtubeUrl: form.youtubeUrl.trim() || "",
           updatedAt: serverTimestamp(),
+          status: form.status,
+          slug: form.slug.trim() || form.title.trim().toLowerCase().replace(/[^a-z0-9ăâîșț]+/gi, "-").replace(/^-|-$/g, ""),
+          tags: form.tags.split(",").map((tag: string) => tag.trim()).filter(Boolean),
+          scheduledAt: form.scheduledAt || "",
         });
+        await addDoc(collection(db, "auditLogs"), { entity: "post", entityId: form.id, action: "updated", title: form.title.trim(), createdAt: serverTimestamp() });
       }
 
       cancel();
@@ -174,6 +197,7 @@ export default function PostsManager() {
 
     try {
       await deleteDoc(doc(db, "posts", p.id));
+      await addDoc(collection(db, "auditLogs"), { entity: "post", entityId: p.id, action: "deleted", title: p.title, createdAt: serverTimestamp() });
     } catch (e: any) {
       setError(e?.message || "Eroare la ștergere.");
     }
@@ -185,6 +209,7 @@ export default function PostsManager() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <AdminBackButton />
       <Stack spacing={2}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
           <Box sx={{ flex: 1 }}>
@@ -299,6 +324,21 @@ export default function PostsManager() {
                   onChange={(e) => setForm((s) => ({ ...s, youtubeUrl: e.target.value }))}
                   helperText="Ex: https://www.youtube.com/watch?v=... sau https://youtu.be/..."
                 />
+                <TextField select label="Status" value={form.status} onChange={(e) => setForm((s) => ({ ...s, status: e.target.value as "draft" | "published" }))}>
+                  <MenuItem value="draft">Ciornă</MenuItem>
+                  <MenuItem value="published">Publicată</MenuItem>
+                </TextField>
+                <TextField label="Slug URL (opțional)" value={form.slug} onChange={(e) => setForm((s) => ({ ...s, slug: e.target.value }))} helperText="Exemplu: credinta-si-rugaciunea" />
+                <TextField label="Etichete (separate prin virgulă)" value={form.tags} onChange={(e) => setForm((s) => ({ ...s, tags: e.target.value }))} />
+                <TextField label="Programare publicare (opțional)" type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((s) => ({ ...s, scheduledAt: e.target.value }))} InputLabelProps={{ shrink: true }} />
+                <Card variant="outlined" sx={{ bgcolor: "#f8fafc" }}>
+                  <CardContent>
+                    <Typography sx={{ fontWeight: 800, mb: 1 }}>Previzualizare</Typography>
+                    <Typography variant="h6">{form.title || "Titlul postării"}</Typography>
+                    <Typography variant="body2">{form.excerpt || "Textul scurt va apărea aici."}</Typography>
+                    {form.imageUrl && <Box component="img" src={form.imageUrl} alt="" sx={{ mt: 1, maxWidth: "100%", maxHeight: 180 }} />}
+                  </CardContent>
+                </Card>
 
                 {error && (
                   <Typography sx={{ color: "error.main", fontSize: 14 }}>
@@ -354,6 +394,9 @@ export default function PostsManager() {
                     <Typography sx={{ opacity: 0.75, fontSize: 13 }}>
                       Categorie:{" "}
                       {CATEGORIES.find((c) => c.key === p.category)?.label ?? p.category}
+                    </Typography>
+                    <Typography sx={{ mt: 0.5, fontSize: 12, color: p.status === "draft" ? "#b45309" : "#15803d" }}>
+                      {p.status === "draft" ? "Ciornă" : "Publicată"}{p.slug ? ` · /post/${p.id}/${p.slug}` : ""}
                     </Typography>
 
                     {/* ✅ în listă arătăm excerpt (preview), nu content */}

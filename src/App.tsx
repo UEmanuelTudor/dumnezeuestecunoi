@@ -20,7 +20,14 @@ import AdminPanel from "./pages/admin/AdminPanel";
 import PostsManager from "./pages/admin/PostsManager";
 import NeedsManager from "./pages/admin/NeedsManager";
 import NewsletterManager from "./pages/admin/NewsletterManager";
-import AdminStatistics from "./pages/admin/AdminStatistics";
+import MediaLibrary from "./pages/admin/MediaLibrary";
+import ActivityLog from "./pages/admin/ActivityLog";
+import AdminStats from "./pages/admin/AdminStats";
+import SearchPage from "./pages/SearchPage";
+import InfoPage from "./pages/InfoPage";
+import PostPage from "./pages/PostPage";
+import CookieBanner from "./components/CookieBanner";
+import AccessibilityMenu from "./components/AccessibilityMenu";
 
 export default function App() {
   return (
@@ -41,9 +48,16 @@ export default function App() {
                   <Route path="/c/predicare" element={<Predicare />} />
                   <Route path="/c/marturie" element={<Marturie />} />
                   <Route path="/nevoi" element={<Needs />} />
+                  <Route path="/cautare" element={<SearchPage />} />
+                  <Route path="/despre-noi" element={<InfoPage type="about" />} />
+                  <Route path="/contact" element={<InfoPage type="contact" />} />
+                  <Route path="/politica-de-confidentialitate" element={<InfoPage type="privacy" />} />
+                  <Route path="/post/:id/:slug" element={<PostPage />} />
                 </Routes>
               </Box>
               <Footer />
+              <CookieBanner />
+              <AccessibilityMenu />
             </Box>
           }
         />
@@ -54,11 +68,13 @@ export default function App() {
         {/* ADMIN PROTEJAT (după login) */}
         <Route path="/admin/*" element={<AdminLayout />}>
           <Route path="home" element={<AdminHome />} />
+          <Route path="statistici" element={<AdminStats />} />
           <Route path="administrare" element={<AdminPanel />} />
           <Route path="administrare/postari" element={<PostsManager />} />
- <Route path="administrare/nevoi" element={<NeedsManager />} />
-<Route path="administrare/newsletter" element={<NewsletterManager />} />
-<Route path="statistici" element={<AdminStatistics />} />
+          <Route path="administrare/nevoi" element={<NeedsManager />} />
+          <Route path="administrare/newsletter" element={<NewsletterManager />} />
+          <Route path="administrare/media" element={<MediaLibrary />} />
+          <Route path="administrare/istoric" element={<ActivityLog />} />
         </Route>
       </Routes>
     </BrowserRouter>
